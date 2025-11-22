@@ -48,7 +48,8 @@ def create_retrieve_memory(memory_store):
         if not memories:
             return f"No memories found for keyword '{keyword}'" + (f" in type '{memory_type}'" if memory_type else "")
         
-        result = f"Found {len(memories)} relevant memory/memories:\n"
+        memory_word = "memory" if len(memories) == 1 else "memories"
+        result = f"Found {len(memories)} relevant {memory_word}:\n"
         for i, mem in enumerate(memories, 1):
             result += f"{i}. [{mem['memory_type']}] {mem['content']} (stored: {mem['created_at']})\n"
         

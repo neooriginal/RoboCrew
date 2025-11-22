@@ -17,7 +17,7 @@ class MemoryStore:
             db_path: Path to the SQLite database file
         """
         self.db_path = db_path
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._create_tables()
     
@@ -174,10 +174,20 @@ class MemoryStore:
         self.conn.commit()
     
     def close(self):
-        """Close the database connection."""
+        """Close the database connection. Always call this when done using the memory store."""
         if self.conn:
             self.conn.close()
+            self.conn = None
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensures connection is closed."""
+        self.close()
+        return False
     
     def __del__(self):
-        """Cleanup on deletion."""
+        """Cleanup on deletion. Note: Not guaranteed to be called."""
         self.close()
