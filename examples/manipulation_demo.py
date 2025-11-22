@@ -39,15 +39,17 @@ When manipulating objects:
 print("Initializing robot hardware...")
 
 # Wheel controller for navigation
+# Note: XLeRobot uses one arm's motors for wheels (typically right arm base motors)
 wheel_controller = XLeRobotWheels(
-    wheel_arm_usb="/dev/arm_right",  # USB port for wheel control
+    wheel_arm_usb="/dev/arm_right",  # USB port for wheel control (base motors)
     head_arm_usb="/dev/arm_head"
 )
 
 # Arm controller for manipulation
+# Note: If your robot uses the same USB for wheels and arm, only initialize one arm
 arm_controller = XLeRobotArms(
     left_arm_usb="/dev/arm_left",
-    right_arm_usb="/dev/arm_right",
+    right_arm_usb="/dev/ttyUSB1",  # Use different USB port from wheels
     enable_left=True,   # Enable both arms
     enable_right=True
 )

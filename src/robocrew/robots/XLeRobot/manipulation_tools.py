@@ -107,7 +107,7 @@ def create_close_gripper(arm_controller):
 def create_set_gripper(arm_controller):
     """Create a tool for setting gripper to specific opening."""
     @tool
-    def set_gripper(arm: str, opening_percentage: float) -> str:
+    def set_gripper(arm: str = "right", opening_percentage: float = 50.0) -> str:
         """
         Set gripper opening to a specific percentage.
         
@@ -158,8 +158,8 @@ def create_reach_object(arm_controller):
     """Create a tool for reaching toward an object (simplified version)."""
     @tool
     def reach_object(
-        arm: str,
-        angle_degrees: float,
+        arm: str = "right",
+        angle_degrees: float = 0.0,
         extend: bool = True
     ) -> str:
         """
@@ -199,7 +199,7 @@ def create_reach_object(arm_controller):
 def create_grasp_object(arm_controller):
     """Create a tool for grasping (reach + close gripper)."""
     @tool
-    def grasp_object(arm: str, angle_degrees: float) -> str:
+    def grasp_object(arm: str = "right", angle_degrees: float = 0.0) -> str:
         """
         Reach toward an object and attempt to grasp it.
         
@@ -235,7 +235,7 @@ def create_grasp_object(arm_controller):
 def create_release_object(arm_controller):
     """Create a tool for releasing a grasped object."""
     @tool
-    def release_object(arm: str) -> str:
+    def release_object(arm: str = "right") -> str:
         """
         Release the currently grasped object by opening the gripper.
         
