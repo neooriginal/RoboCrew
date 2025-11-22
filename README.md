@@ -12,7 +12,7 @@ RoboCrew makes it stupidly simple to create LLM agents for physical robots. Thin
 - 🎤 **Voice** - Wake-word activated voice commands
 - 🧠 **Intelligence** - LLM agent robot control provides complete autonomy and decision making
 - 🚗 **Movement** - Pre-built wheel controls for mobile robots
-- 🦾 **Manipulation** *(coming soon)* - VLA models as a tools for arms control
+- 🦾 **Manipulation** - Arm control with dual gripper support for object interaction
 - 🗺️ **Navigation** *(coming soon)* - Navigation features
 
 ## Supported Robots
@@ -89,6 +89,49 @@ Now just say something like **"Hey robot, bring me a beer."** — the robot list
 - **history_len**: How many conversation turns to remember (optional)
 
 
+## Object Manipulation
+
+Control robot arms for picking up and manipulating objects:
+
+```python
+from robocrew.robots.XLeRobot.arm_controls import XLeRobotArms
+from robocrew.robots.XLeRobot.manipulation_tools import (
+    create_reach_object,
+    create_grasp_object,
+    create_release_object,
+    create_reset_arm,
+)
+
+# Initialize arm controller
+arm_controller = XLeRobotArms(
+    left_arm_usb="/dev/arm_left",
+    right_arm_usb="/dev/arm_right"
+)
+
+# Create manipulation tools
+reach_object = create_reach_object(arm_controller)
+grasp_object = create_grasp_object(arm_controller)
+release_object = create_release_object(arm_controller)
+reset_arm = create_reset_arm(arm_controller)
+
+# Add to agent
+agent = LLMAgent(
+    model="google_genai:gemini-robotics-er-1.5-preview",
+    tools=[
+        move_forward, turn_left, turn_right,  # Movement
+        reach_object, grasp_object, release_object, reset_arm,  # Manipulation
+        finish_task
+    ],
+    main_camera_usb_port="/dev/video0",
+)
+
+agent.task = "Find the cup and pick it up"
+agent.go()
+```
+
+See `examples/manipulation_demo.py` for a complete example.
+
+
 ## Custom Tools
 
 Create your own tools easily:
@@ -97,13 +140,13 @@ Create your own tools easily:
 from langchain_core.tools import tool
 
 @tool
-def grab_object(name: str) -> str:
-    """Grab the specified object."""
+def custom_action(name: str) -> str:
+    """Perform a custom action."""
     # Your hardware code here
-    return f"Grabbed {name}"
+    return f"Performed action: {name}"
 
 # Then just add to tools list
-agent = LLMAgent(tools=[grab_object, finish_task], ...)
+agent = LLMAgent(tools=[custom_action, finish_task], ...)
 ```
 
 
