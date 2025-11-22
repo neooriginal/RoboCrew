@@ -11,7 +11,7 @@ load_dotenv(find_dotenv())
 
 
 class LLMAgent():
-    def __init__(self, model, tools, system_prompt=None, main_camera_usb_port=None, camera_fov=120, sounddevice_index=None, wakeword="robot", history_len=None, debug_mode=False):
+    def __init__(self, model, tools, system_prompt=None, main_camera_usb_port=None, camera_fov=120, sounddevice_index=None, wakeword="robot", history_len=None, debug_mode=False, memory_enabled=False, memory_db_path="robot_memory.db"):
         """
         model: name of the model to use
         tools: list of langchain tools
@@ -21,10 +21,29 @@ class LLMAgent():
         sounddevice_index: provide sounddevice index of your microphone if you want robot to hear.
         wakeword: custom wakeword hearing which robot will set your sentence as a task o do.
         history_len: if you want agent to have messages history cuttof, provide number of newest request-response pairs to keep.
+        memory_enabled: enable memory system for storing and retrieving spatial information
+        memory_db_path: path to SQLite database file for memory storage (default: robot_memory.db)
         """
         base_system_prompt = "You are mobile robot with two arms."
         self.task = "You are standing in a room. Explore the environment, find a backpack and approach it."
         system_prompt = system_prompt or base_system_prompt
+        
+        # Initialize memory system if enabled
+        self.memory_store = None
+        if memory_enabled:
+            from robocrew.core.memory import MemoryStore
+            from robocrew.core.tools import create_store_memory, create_retrieve_memory
+            self.memory_store = MemoryStore(memory_db_path)
+            # Add memory tools to the tools list
+            memory_tools = [
+                create_store_memory(self.memory_store),
+                create_retrieve_memory(self.memory_store)
+            ]
+            tools = list(tools) + memory_tools
+            # Update system prompt to mention memory capabilities
+            if memory_enabled and "memory" not in system_prompt.lower():
+                system_prompt += " You have a memory system to store and retrieve information about locations, objects, and spatial relationships. Use store_memory to remember important information and retrieve_memory to recall it later."
+        
         llm = init_chat_model(model)
         self.llm = llm.bind_tools(tools, parallel_tool_calls=False)
         self.tools = tools

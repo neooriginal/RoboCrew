@@ -9,3 +9,5 @@ dist/
 old_sdk.py
 uv.lock
 debug/
+*.db
+test_memory.py
