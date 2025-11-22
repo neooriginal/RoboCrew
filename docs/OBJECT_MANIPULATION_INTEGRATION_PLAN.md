@@ -853,7 +853,7 @@ from robocrew.robots.XLeRobot.manipulation_tools import (
 from robocrew.models.vla import VLAController
 
 # Initialize hardware
-wheel_controller = XLeRobotWheels("/dev/arm_right")
+wheel_controller = XLeRobotWheels(wheel_arm_usb="/dev/arm_right")
 arm_controller = XLeRobotArms(
     left_arm_usb="/dev/arm_left",
     right_arm_usb="/dev/arm_right"
