@@ -88,12 +88,11 @@ class ServoControler:
             }
             
             calibration = None
+            arm_ready = False
             
-            # Add arm motors if enabled
+            # Add arm motors ONLY if calibration exists (required for position control)
             if enable_arm:
-                # Load arm calibration - REQUIRED for DEGREES mode
                 arm_calibration = {}
-                cal_loaded = False
                 
                 if arm_calibration_path:
                     cal_path = Path(arm_calibration_path)
@@ -110,23 +109,20 @@ class ServoControler:
                                     range_min=cal.get("range_min", 0),
                                     range_max=cal.get("range_max", 4095),
                                 )
-                            cal_loaded = True
+                            
+                            # Add arm motors (IDs 1-6) with DEGREES mode
+                            for joint_name, motor_id in ARM_SERVO_MAP.items():
+                                motors[motor_id] = Motor(motor_id, "sts3215", MotorNormMode.DEGREES)
+                            calibration = arm_calibration
+                            arm_ready = True
                             print(f"[ARM] Loaded calibration for {len(arm_calibration)} motors")
                         except Exception as e:
                             print(f"[ARM] Failed to load calibration: {e}")
                     else:
                         print(f"[ARM] Calibration file not found: {cal_path}")
-                
-                if cal_loaded:
-                    # Add arm motors (IDs 1-6) with DEGREES mode
-                    for joint_name, motor_id in ARM_SERVO_MAP.items():
-                        motors[motor_id] = Motor(motor_id, "sts3215", MotorNormMode.DEGREES)
-                    calibration = arm_calibration
+                        print("[ARM] Arm control disabled - calibration required")
                 else:
-                    # Fallback: use RANGE mode which doesn't need calibration
-                    print("[ARM] Using RANGE mode (no calibration)")
-                    for joint_name, motor_id in ARM_SERVO_MAP.items():
-                        motors[motor_id] = Motor(motor_id, "sts3215", MotorNormMode.RANGE_M100_100)
+                    print("[ARM] No calibration path provided - arm disabled")
             
             self.wheel_bus = FeetechMotorsBus(
                 port=right_arm_wheel_usb,
@@ -136,7 +132,7 @@ class ServoControler:
             self.wheel_bus.connect()
             self.apply_wheel_modes()
             
-            if enable_arm:
+            if arm_ready:
                 self._apply_arm_modes()
                 self._arm_enabled = True
                 try:
