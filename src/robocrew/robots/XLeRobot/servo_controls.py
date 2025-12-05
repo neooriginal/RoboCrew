@@ -43,7 +43,7 @@ ARM_LIMITS = {
     "elbow_flex": (-90, 90),
     "wrist_flex": (-90, 90),
     "wrist_roll": (-150, 150),
-    "gripper": (0, 90),  # 0 = closed, 90 = open
+    "gripper": (2, 90),  # 2 = fully closed, 90 = fully open
 }
 
 
@@ -291,7 +291,7 @@ class ServoControler:
 
     def set_gripper(self, closed: bool) -> float:
         """Set gripper state. closed=True closes gripper, closed=False opens it."""
-        angle = 0.0 if closed else 90.0
+        angle = 2.0 if closed else 90.0  # 2 = closed, 90 = open
         return self.set_arm_joint("gripper", angle)
 
     # ============== Cleanup ==============
