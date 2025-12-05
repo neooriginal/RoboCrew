@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import time
 import json
+import time
 from pathlib import Path
 from typing import Dict, Mapping, Optional
 from lerobot.motors import Motor, MotorCalibration, MotorNormMode
@@ -241,7 +241,7 @@ class ServoControler:
             self.wheel_bus.write("Operating_Mode", motor_id, OperatingMode.POSITION.value)
         # Torque is already enabled for wheels, but arm motors need it too
         # The enable_torque call affects all motors on the bus
-
+    
     def get_arm_position(self) -> Dict[str, float]:
         """Read current arm joint positions in degrees."""
         if not self._arm_enabled:
@@ -282,7 +282,25 @@ class ServoControler:
         angle = 0.0 if closed else 90.0
         return self.set_arm_joint("gripper", angle)
 
-    # ============== Cleanup ==============
+    def open_gripper(self) -> float:
+        """Fully open the gripper."""
+        return self.set_gripper(False)
+
+    def close_gripper(self) -> float:
+        """Fully close the gripper."""
+        return self.set_gripper(True)
+
+    def reset_arm_position(self) -> Dict[str, float]:
+        """Reset arm to a safe neutral position."""
+        neutral = {
+            "shoulder_pan": 0,
+            "shoulder_lift": 0,
+            "elbow_flex": 0,
+            "wrist_flex": 0,
+            "wrist_roll": 0,
+            "gripper": 45,  # Half open
+        }
+        return self.set_arm_position(neutral)
 
     def disconnect(self) -> None:
         self._wheels_stop()
@@ -294,3 +312,4 @@ class ServoControler:
     def __del__(self) -> None:
         if hasattr(self, "wheel_bus") and self.wheel_bus and self.wheel_bus.is_connected:
             self.disconnect()
+
