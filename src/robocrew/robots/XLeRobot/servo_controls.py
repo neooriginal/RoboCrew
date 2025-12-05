@@ -1,4 +1,4 @@
-"""Lightweight wheel and arm helpers for the XLeRobot."""
+"""Servo controller for XLeRobot wheels, head, and arm."""
 
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ DEFAULT_SPEED = 10_000
 LINEAR_MPS = 0.25
 ANGULAR_DPS = 100.0
 
-# Wheel motors: IDs 7, 8, 9 on right_arm_wheel bus
 ACTION_MAP = {
     "up": {7: 1, 8: 0, 9: -1},
     "down": {7: -1, 8: 0, 9: 1},
@@ -23,10 +22,8 @@ ACTION_MAP = {
     "right": {7: -1, 8: -1, 9: -1},
 }
 
-# Head motors: IDs 7, 8 on left_arm_head bus
 HEAD_SERVO_MAP = {"yaw": 7, "pitch": 8}
 
-# Right arm motors: IDs 1-6 on SAME bus as wheels (right_arm_wheel)
 ARM_SERVO_MAP = {
     "shoulder_pan": 1,
     "shoulder_lift": 2,
@@ -36,24 +33,18 @@ ARM_SERVO_MAP = {
     "gripper": 6,
 }
 
-# Arm joint limits in degrees
 ARM_LIMITS = {
     "shoulder_pan": (-90, 90),
     "shoulder_lift": (-90, 90),
     "elbow_flex": (-90, 90),
     "wrist_flex": (-90, 90),
     "wrist_roll": (-150, 150),
-    "gripper": (2, 90),  # 2 = fully closed, 90 = fully open
+    "gripper": (2, 90),
 }
 
 
 class ServoControler:
-    """Controller for wheels, head, and right arm.
-    
-    Motor layout:
-    - right_arm_wheel_usb: Wheels (7,8,9) + Right Arm (1-6)
-    - left_arm_head_usb: Head (7,8)
-    """
+    """Controller for wheels (7-9), head (7-8), and arm (1-6)."""
 
     def __init__(
         self,
@@ -78,9 +69,7 @@ class ServoControler:
         self.wheel_bus = None
         self.head_bus = None
 
-        # Initialize wheel/arm bus (they share the same port!)
         if right_arm_wheel_usb:
-            # Build motor dict - always include wheels (velocity mode, no calibration needed)
             motors = {
                 7: Motor(7, "sts3215", MotorNormMode.RANGE_M100_100),
                 8: Motor(8, "sts3215", MotorNormMode.RANGE_M100_100),
@@ -90,39 +79,32 @@ class ServoControler:
             calibration = None
             arm_ready = False
             
-            # Add arm motors ONLY if calibration exists (required for position control)
-            if enable_arm:
-                arm_calibration = {}
-                
-                if arm_calibration_path:
-                    cal_path = Path(arm_calibration_path)
-                    if cal_path.exists():
-                        try:
-                            with open(cal_path) as f:
-                                cal_data = json.load(f)
-                            for joint_name, cal in cal_data.items():
-                                motor_id = cal["id"]
-                                arm_calibration[motor_id] = MotorCalibration(
-                                    id=motor_id,
-                                    drive_mode=cal.get("drive_mode", 0),
-                                    homing_offset=cal.get("homing_offset", 0),
-                                    range_min=cal.get("range_min", 0),
-                                    range_max=cal.get("range_max", 4095),
-                                )
-                            
-                            # Add arm motors (IDs 1-6) with DEGREES mode
-                            for joint_name, motor_id in ARM_SERVO_MAP.items():
-                                motors[motor_id] = Motor(motor_id, "sts3215", MotorNormMode.DEGREES)
-                            calibration = arm_calibration
-                            arm_ready = True
-                            print(f"[ARM] Loaded calibration for {len(arm_calibration)} motors")
-                        except Exception as e:
-                            print(f"[ARM] Failed to load calibration: {e}")
-                    else:
-                        print(f"[ARM] Calibration file not found: {cal_path}")
-                        print("[ARM] Arm control disabled - calibration required")
+            if enable_arm and arm_calibration_path:
+                cal_path = Path(arm_calibration_path)
+                if cal_path.exists():
+                    try:
+                        with open(cal_path) as f:
+                            cal_data = json.load(f)
+                        arm_calibration = {}
+                        for joint_name, cal in cal_data.items():
+                            motor_id = cal["id"]
+                            arm_calibration[motor_id] = MotorCalibration(
+                                id=motor_id,
+                                drive_mode=cal.get("drive_mode", 0),
+                                homing_offset=cal.get("homing_offset", 0),
+                                range_min=cal.get("range_min", 0),
+                                range_max=cal.get("range_max", 4095),
+                            )
+                        
+                        for joint_name, motor_id in ARM_SERVO_MAP.items():
+                            motors[motor_id] = Motor(motor_id, "sts3215", MotorNormMode.DEGREES)
+                        calibration = arm_calibration
+                        arm_ready = True
+                        print(f"[ARM] Loaded calibration for {len(arm_calibration)} motors")
+                    except Exception as e:
+                        print(f"[ARM] Failed to load calibration: {e}")
                 else:
-                    print("[ARM] No calibration path provided - arm disabled")
+                    print(f"[ARM] Calibration not found: {cal_path}")
             
             self.wheel_bus = FeetechMotorsBus(
                 port=right_arm_wheel_usb,
@@ -138,24 +120,11 @@ class ServoControler:
                 try:
                     self._arm_positions = self.get_arm_position()
                 except Exception as e:
-                    print(f"[ARM] Could not read initial position: {e}")
+                    print(f"[ARM] Could not read position: {e}")
         
-        # Head motors on separate bus (left_arm_head)
         head_calibration = {
-            7: MotorCalibration(
-                id=7,
-                drive_mode=0,
-                homing_offset=0,
-                range_min=0,
-                range_max=4095,
-            ),
-            8: MotorCalibration(
-                id=8,
-                drive_mode=0,
-                homing_offset=0,
-                range_min=0,
-                range_max=4095,
-            ),
+            7: MotorCalibration(id=7, drive_mode=0, homing_offset=0, range_min=0, range_max=4095),
+            8: MotorCalibration(id=8, drive_mode=0, homing_offset=0, range_min=0, range_max=4095),
         }
         
         if left_arm_head_usb:
@@ -177,7 +146,7 @@ class ServoControler:
     def arm_enabled(self) -> bool:
         return self._arm_enabled
 
-    # ============== Wheel Control ==============
+    # Wheel control
 
     def _wheels_write(self, action: str) -> Dict[int, int]:
         multipliers = self.action_map[action.lower()]
@@ -215,7 +184,7 @@ class ServoControler:
             self.wheel_bus.write("Operating_Mode", wid, OperatingMode.VELOCITY.value)
         self.wheel_bus.enable_torque()
 
-    # ============== Head Control ==============
+    # Head control
 
     def apply_head_modes(self) -> None:
         for sid in self._head_ids:
@@ -245,17 +214,13 @@ class ServoControler:
         self.turn_head_pitch(35)
         self.turn_head_yaw(0)
 
-    # ============== Arm Control (uses wheel_bus, IDs 1-6) ==============
+    # Arm control
 
     def _apply_arm_modes(self) -> None:
-        """Set arm motors to position mode and enable torque."""
         for motor_id in self._arm_ids:
             self.wheel_bus.write("Operating_Mode", motor_id, OperatingMode.POSITION.value)
-        # Torque is already enabled for wheels, but arm motors need it too
-        # The enable_torque call affects all motors on the bus
 
     def get_arm_position(self) -> Dict[str, float]:
-        """Read current arm joint positions in degrees."""
         if not self._arm_enabled:
             return {}
         raw = self.wheel_bus.sync_read("Present_Position", list(self._arm_ids))
@@ -265,7 +230,6 @@ class ServoControler:
         return result
 
     def set_arm_position(self, positions: Dict[str, float]) -> Dict[str, float]:
-        """Set arm joint positions. Applies limits for safety."""
         if not self._arm_enabled:
             return {}
         
@@ -283,18 +247,16 @@ class ServoControler:
         return self._arm_positions.copy()
 
     def set_arm_joint(self, joint_name: str, angle: float) -> float:
-        """Set a single arm joint position."""
         if joint_name not in ARM_SERVO_MAP:
             return 0.0
         result = self.set_arm_position({joint_name: angle})
         return result.get(joint_name, 0.0)
 
     def set_gripper(self, closed: bool) -> float:
-        """Set gripper state. closed=True closes gripper, closed=False opens it."""
-        angle = 2.0 if closed else 90.0  # 2 = closed, 90 = open
+        angle = 2.0 if closed else 90.0
         return self.set_arm_joint("gripper", angle)
 
-    # ============== Cleanup ==============
+    # Cleanup
 
     def disconnect(self) -> None:
         self._wheels_stop()
