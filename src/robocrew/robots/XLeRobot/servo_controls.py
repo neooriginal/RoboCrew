@@ -18,9 +18,6 @@ ACTION_MAP = {
     "down": {7: -1, 8: 0, 9: 1},
     "left": {7: 1, 8: 1, 9: 1},
     "right": {7: -1, 8: -1, 9: -1},
-    # Strafe movements for omni-wheel (Q/E keys)
-    "strafe_left": {7: 1, 8: -1, 9: 1},
-    "strafe_right": {7: -1, 8: 1, 9: -1},
 }
 
 HEAD_SERVO_MAP = {"yaw": 7, "pitch": 8}
