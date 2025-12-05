@@ -28,6 +28,16 @@ def create_move_forward(servo_controller):
 
     return move_forward
 
+def create_move_backward(servo_controller):
+    @tool
+    def move_backward(distance_meters: float) -> str:
+        """Drives the robot backward for a specific distance."""
+        distance = float(distance_meters)
+        servo_controller.go_backward(distance)
+        return f"Moved backward {distance:.2f} meters."
+
+    return move_backward
+
 
 def create_turn_right(servo_controller):
     @tool

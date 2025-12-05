@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Control Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Robot Control Interface</h1>
+            <div class="status" id="status">Ready</div>
+        </header>
+
+        <div class="video-container">
+            <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="Robot Camera Feed">
+            <div class="overlay" id="overlay">
+                <div class="instructions">
+                    <h3>Controls</h3>
+                    <p><kbd>W</kbd> Move Forward</p>
+                    <p><kbd>S</kbd> Move Backward</p>
+                    <p><kbd>A</kbd> Turn Left</p>
+                    <p><kbd>D</kbd> Turn Right</p>
+                    <p><strong>Mouse:</strong> Click video to look around</p>
+                    <p><kbd>ESC</kbd> Exit mouse look</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <div class="info-item">
+                <span class="label">Yaw:</span>
+                <span id="yawValue">0°</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Pitch:</span>
+                <span id="pitchValue">0°</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State tracking
+        const keysPressed = new Set();
+        let mouseLocked = false;
+        
+        // Get elements
+        const videoFeed = document.getElementById('videoFeed');
+        const statusElement = document.getElementById('status');
+        const overlay = document.getElementById('overlay');
+        const yawValue = document.getElementById('yawValue');
+        const pitchValue = document.getElementById('pitchValue');
+
+        // Mouse sensitivity
+        const mouseSensitivity = 0.2;
+
+        // Update status message
+        function updateStatus(message, type = 'info') {
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+
+        // Send control command
+        async function sendControl(action, params = {}) {
+            try {
+                const response = await fetch('/control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action, ...params }),
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    updateStatus(data.message, 'success');
+                } else {
+                    updateStatus(data.message, 'error');
+                }
+            } catch (error) {
+                updateStatus('Connection error', 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        // Send look command
+        async function sendLook(deltaYaw, deltaPitch) {
+            try {
+                const response = await fetch('/look', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ deltaYaw, deltaPitch }),
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    yawValue.textContent = `${data.yaw.toFixed(1)}°`;
+                    pitchValue.textContent = `${data.pitch.toFixed(1)}°`;
+                }
+            } catch (error) {
+                console.error('Look error:', error);
+            }
+        }
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            // Prevent repeated keydown events
+            if (keysPressed.has(e.key.toLowerCase())) {
+                return;
+            }
+            
+            keysPressed.add(e.key.toLowerCase());
+            
+            switch(e.key.toLowerCase()) {
+                case 'w':
+                    sendControl('forward', { distance: 0.1 });
+                    break;
+                case 's':
+                    sendControl('backward', { distance: 0.1 });
+                    break;
+                case 'a':
+                    sendControl('turn_left', { angle: 15 });
+                    break;
+                case 'd':
+                    sendControl('turn_right', { angle: 15 });
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keysPressed.delete(e.key.toLowerCase());
+        });
+
+        // Mouse look controls
+        videoFeed.addEventListener('click', () => {
+            videoFeed.requestPointerLock();
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            if (document.pointerLockElement === videoFeed) {
+                mouseLocked = true;
+                overlay.style.opacity = '0';
+                updateStatus('Mouse look enabled', 'success');
+            } else {
+                mouseLocked = false;
+                overlay.style.opacity = '1';
+                updateStatus('Mouse look disabled', 'info');
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (mouseLocked) {
+                const deltaYaw = e.movementX * mouseSensitivity;
+                const deltaPitch = -e.movementY * mouseSensitivity; // Inverted for natural feel
+                
+                sendLook(deltaYaw, deltaPitch);
+            }
+        });
+
+        // Initial status
+        updateStatus('Ready - Click video to enable mouse look', 'info');
+    </script>
+</body>
+</html>
