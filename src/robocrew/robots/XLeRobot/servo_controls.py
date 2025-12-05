@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import time
+import json
 from pathlib import Path
 from typing import Dict, Mapping, Optional
 from lerobot.motors import Motor, MotorCalibration, MotorNormMode
@@ -80,7 +80,7 @@ class ServoControler:
 
         # Initialize wheel/arm bus (they share the same port!)
         if right_arm_wheel_usb:
-            # Build motor dict - always include wheels
+            # Build motor dict - always include wheels (velocity mode, no calibration needed)
             motors = {
                 7: Motor(7, "sts3215", MotorNormMode.RANGE_M100_100),
                 8: Motor(8, "sts3215", MotorNormMode.RANGE_M100_100),
@@ -91,29 +91,42 @@ class ServoControler:
             
             # Add arm motors if enabled
             if enable_arm:
-                # Load arm calibration if provided
+                # Load arm calibration - REQUIRED for DEGREES mode
                 arm_calibration = {}
+                cal_loaded = False
+                
                 if arm_calibration_path:
                     cal_path = Path(arm_calibration_path)
                     if cal_path.exists():
-                        with open(cal_path) as f:
-                            cal_data = json.load(f)
-                        for joint_name, cal in cal_data.items():
-                            motor_id = cal["id"]
-                            arm_calibration[motor_id] = MotorCalibration(
-                                id=motor_id,
-                                drive_mode=cal.get("drive_mode", 0),
-                                homing_offset=cal.get("homing_offset", 0),
-                                range_min=cal.get("range_min", 0),
-                                range_max=cal.get("range_max", 4095),
-                            )
+                        try:
+                            with open(cal_path) as f:
+                                cal_data = json.load(f)
+                            for joint_name, cal in cal_data.items():
+                                motor_id = cal["id"]
+                                arm_calibration[motor_id] = MotorCalibration(
+                                    id=motor_id,
+                                    drive_mode=cal.get("drive_mode", 0),
+                                    homing_offset=cal.get("homing_offset", 0),
+                                    range_min=cal.get("range_min", 0),
+                                    range_max=cal.get("range_max", 4095),
+                                )
+                            cal_loaded = True
+                            print(f"[ARM] Loaded calibration for {len(arm_calibration)} motors")
+                        except Exception as e:
+                            print(f"[ARM] Failed to load calibration: {e}")
+                    else:
+                        print(f"[ARM] Calibration file not found: {cal_path}")
                 
-                # Add arm motors (IDs 1-6)
-                for joint_name, motor_id in ARM_SERVO_MAP.items():
-                    motors[motor_id] = Motor(motor_id, "sts3215", MotorNormMode.DEGREES)
-                
-                if arm_calibration:
+                if cal_loaded:
+                    # Add arm motors (IDs 1-6) with DEGREES mode
+                    for joint_name, motor_id in ARM_SERVO_MAP.items():
+                        motors[motor_id] = Motor(motor_id, "sts3215", MotorNormMode.DEGREES)
                     calibration = arm_calibration
+                else:
+                    # Fallback: use RANGE mode which doesn't need calibration
+                    print("[ARM] Using RANGE mode (no calibration)")
+                    for joint_name, motor_id in ARM_SERVO_MAP.items():
+                        motors[motor_id] = Motor(motor_id, "sts3215", MotorNormMode.RANGE_M100_100)
             
             self.wheel_bus = FeetechMotorsBus(
                 port=right_arm_wheel_usb,
@@ -126,7 +139,10 @@ class ServoControler:
             if enable_arm:
                 self._apply_arm_modes()
                 self._arm_enabled = True
-                self._arm_positions = self.get_arm_position()
+                try:
+                    self._arm_positions = self.get_arm_position()
+                except Exception as e:
+                    print(f"[ARM] Could not read initial position: {e}")
         
         # Head motors on separate bus (left_arm_head)
         head_calibration = {
@@ -241,7 +257,7 @@ class ServoControler:
             self.wheel_bus.write("Operating_Mode", motor_id, OperatingMode.POSITION.value)
         # Torque is already enabled for wheels, but arm motors need it too
         # The enable_torque call affects all motors on the bus
-    
+
     def get_arm_position(self) -> Dict[str, float]:
         """Read current arm joint positions in degrees."""
         if not self._arm_enabled:
@@ -282,25 +298,7 @@ class ServoControler:
         angle = 0.0 if closed else 90.0
         return self.set_arm_joint("gripper", angle)
 
-    def open_gripper(self) -> float:
-        """Fully open the gripper."""
-        return self.set_gripper(False)
-
-    def close_gripper(self) -> float:
-        """Fully close the gripper."""
-        return self.set_gripper(True)
-
-    def reset_arm_position(self) -> Dict[str, float]:
-        """Reset arm to a safe neutral position."""
-        neutral = {
-            "shoulder_pan": 0,
-            "shoulder_lift": 0,
-            "elbow_flex": 0,
-            "wrist_flex": 0,
-            "wrist_roll": 0,
-            "gripper": 45,  # Half open
-        }
-        return self.set_arm_position(neutral)
+    # ============== Cleanup ==============
 
     def disconnect(self) -> None:
         self._wheels_stop()
@@ -312,4 +310,3 @@ class ServoControler:
     def __del__(self) -> None:
         if hasattr(self, "wheel_bus") and self.wheel_bus and self.wheel_bus.is_connected:
             self.disconnect()
-
